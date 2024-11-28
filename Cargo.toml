@@ -1,0 +1,9 @@
+[package]
+name = "password-manager"
+version = "0.1.0"
+edition = "2021"
+description="A commandline password manager"
+authors=["Juan Milkah <juanmilkah@gmail.com>"]
+license="MIT"
+
+[dependencies]
