@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 #[derive(Debug, Clone)]
 pub struct Password {
     pub service: String,
@@ -6,7 +8,7 @@ pub struct Password {
 
 #[derive(Debug, Clone)]
 pub struct Passwords {
-    pub passwords: Vec<Password>,
+    pub passwords: BTreeMap<String, Password>,
 }
 
 impl Password {
@@ -21,12 +23,14 @@ impl Password {
 impl Passwords {
     pub fn new() -> Passwords {
         Passwords {
-            passwords: Vec::new(),
+            passwords: BTreeMap::new(),
         }
     }
 
     pub fn add(&mut self, password: Password) {
-        self.passwords.push(password);
+        self.passwords
+            .entry(password.service.clone())
+            .or_insert(password);
     }
 
     pub fn list(&self) {
@@ -39,12 +43,7 @@ impl Passwords {
         }
     }
 
-    pub fn get(&self, service_name: &str) -> Option<Password> {
-        for pass in &self.passwords {
-            if pass.service == service_name {
-                return Some(pass.clone());
-            }
-        }
-        None
+    pub fn search(&self, service_name: &str) -> Option<Password> {
+        self.passwords.get(service_name).cloned()
     }
 }

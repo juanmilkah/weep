@@ -18,7 +18,7 @@ pub fn add_password(mut database: Passwords) -> io::Result<Passwords> {
 
 pub fn retrieve_password(database: &Passwords) -> Result<()> {
     let service_name = prompt("Enter service name: ");
-    match database.get(&service_name) {
+    match database.search(&service_name) {
         Some(service) => println!("{:?}", service),
         None => println!("Service not found"),
     }
