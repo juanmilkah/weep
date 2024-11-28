@@ -28,9 +28,7 @@ impl Passwords {
     }
 
     pub fn add(&mut self, password: Password) {
-        self.passwords
-            .entry(password.service.clone())
-            .or_insert(password);
+        self.passwords.insert(password.service.clone(), password);
     }
 
     pub fn list(&self) {

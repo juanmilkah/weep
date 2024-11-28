@@ -48,7 +48,13 @@ fn main() {
                 Ok(_) => continue,
                 Err(e) => handle_error(Box::new(e)),
             },
-            4 => update_password(),
+            4 => match update_password(database.clone()) {
+                Ok(db) => {
+                    database = db;
+                    continue;
+                }
+                Err(e) => handle_error(Box::new(e)),
+            },
             5 => process::exit(0),
             _ => {
                 println!("{choice}");

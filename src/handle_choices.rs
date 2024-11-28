@@ -9,10 +9,8 @@ pub fn add_password(mut database: Passwords) -> io::Result<Passwords> {
 
     database.add(new_password.clone());
 
-    println!(
-        "Added new password!\n{:?}\t{:?}",
-        new_password.service, new_password.password
-    );
+    println!("Password Added!");
+    println!("{:?}", new_password);
     Ok(database)
 }
 
@@ -25,7 +23,28 @@ pub fn retrieve_password(database: &Passwords) -> Result<()> {
     Ok(())
 }
 
-pub fn update_password() {}
+pub fn update_password(mut database: Passwords) -> Result<Passwords> {
+    let service_name = prompt("Enter Service Name: ");
+    match database.search(&service_name) {
+        Some(val) => println!("{:?}", val),
+        None => {
+            println!("Service not found!");
+            return Ok(database);
+        }
+    }
+
+    let new_password = prompt("Enter a new password: ");
+    let new_password = Password {
+        service: service_name,
+        password: new_password,
+    };
+
+    database.add(new_password.clone());
+    println!("Password Updated!");
+    println!("{:?}", new_password);
+
+    Ok(database)
+}
 
 pub fn list_passwords(database: &Passwords) -> io::Result<()> {
     database.list();
