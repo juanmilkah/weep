@@ -40,7 +40,10 @@ fn main() {
                 }
                 Err(e) => handle_error(Box::new(e)),
             },
-            2 => retrieve_password(),
+            2 => match retrieve_password(&database) {
+                Ok(_) => continue,
+                Err(e) => handle_error(Box::new(e)),
+            },
             3 => match list_passwords(&database) {
                 Ok(_) => continue,
                 Err(e) => handle_error(Box::new(e)),

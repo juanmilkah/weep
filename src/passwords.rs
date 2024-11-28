@@ -38,4 +38,13 @@ impl Passwords {
             println!("{:?}", val);
         }
     }
+
+    pub fn get(&self, service_name: &str) -> Option<Password> {
+        for pass in &self.passwords {
+            if pass.service == service_name {
+                return Some(pass.clone());
+            }
+        }
+        None
+    }
 }

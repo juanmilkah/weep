@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::{self, Result, Write};
 
 use crate::passwords::{Password, Passwords};
 
@@ -16,7 +16,14 @@ pub fn add_password(mut database: Passwords) -> io::Result<Passwords> {
     Ok(database)
 }
 
-pub fn retrieve_password() {}
+pub fn retrieve_password(database: &Passwords) -> Result<()> {
+    let service_name = prompt("Enter service name: ");
+    match database.get(&service_name) {
+        Some(service) => println!("{:?}", service),
+        None => println!("Service not found"),
+    }
+    Ok(())
+}
 
 pub fn update_password() {}
 
