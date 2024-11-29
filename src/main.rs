@@ -1,8 +1,10 @@
+mod ascii_art;
 mod config;
 mod handle_choices;
 mod passwords;
 mod utils;
 
+use self::ascii_art::draw_ascii;
 use self::passwords::Passwords;
 use self::utils::handle_error;
 use crate::handle_choices::{add_password, list_passwords, retrieve_password, update_password};
@@ -12,7 +14,7 @@ use std::io::{self, Write};
 use std::process;
 
 fn main() {
-    println!("A commandline password Manager");
+    draw_ascii();
 
     let options = BTreeMap::from([
         ("1", "Add a new password"),
