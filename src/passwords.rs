@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Result, Write};
+use std::path::PathBuf;
 
+use home::home_dir;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,7 +50,17 @@ impl Passwords {
 }
 
 pub fn read_passwords() -> Result<Passwords> {
-    let mut file = fs::OpenOptions::new().read(true).open("passwords.json")?;
+    let home_directory = get_home_dir();
+    let filepath = home_directory.join("weep/passwords.json");
+    let file = fs::OpenOptions::new().read(true).open(&filepath);
+    let mut file = match file {
+        Ok(v) => v,
+        Err(_) => fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .open(filepath)
+            .unwrap(),
+    };
     let mut content = String::new();
     file.read_to_string(&mut content)?;
 
@@ -66,4 +78,8 @@ pub fn write_passwords(passwords: BTreeMap<String, Password>) -> Result<()> {
         .open("passwords.json")?;
     file.write_all(json_string.as_bytes())?;
     Ok(())
+}
+
+fn get_home_dir() -> PathBuf {
+    home_dir().unwrap()
 }
