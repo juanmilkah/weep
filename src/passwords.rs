@@ -36,11 +36,10 @@ impl Passwords {
         write_passwords(self.passwords.clone()).unwrap();
     }
 
-    pub fn list(&self) {
-        if let Ok(pass_list) = read_passwords() {
-            for pass in pass_list.passwords {
-                println!("{:?}", pass.1); //key, value
-            }
+    pub fn list(&self) -> Option<Passwords> {
+        match read_passwords() {
+            Ok(list) => Some(list),
+            Err(_) => None,
         }
     }
 
@@ -71,11 +70,9 @@ pub fn read_passwords() -> Result<Passwords> {
 pub fn write_passwords(passwords: BTreeMap<String, Password>) -> Result<()> {
     let json_string = serde_json::to_string_pretty(&passwords)?;
 
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open("passwords.json")?;
+    let home_directory = get_home_dir();
+    let filepath = home_directory.join("weep/passwords.json");
+    let mut file = fs::OpenOptions::new().write(true).open(filepath)?;
     file.write_all(json_string.as_bytes())?;
     Ok(())
 }

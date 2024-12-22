@@ -47,7 +47,20 @@ pub fn update_password(mut database: Passwords) -> Result<Passwords> {
 }
 
 pub fn list_passwords(database: &Passwords) -> io::Result<()> {
-    database.list();
+    match database.list() {
+        Some(list) => {
+            for pass in list.passwords {
+                println!(
+                    "Service: {:?}\tPassword: {:?}",
+                    pass.1.service, pass.1.password
+                );
+            }
+        }
+        None => {
+            println!("No passwords saved in database");
+        }
+    }
+
     Ok(())
 }
 
