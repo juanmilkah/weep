@@ -5,6 +5,10 @@ mod master_keys;
 mod passwords;
 mod utils;
 
+use bcrypt::{hash, verify, DEFAULT_COST};
+use home::home_dir;
+use rpassword::prompt_password;
+
 use self::ascii_art::draw_ascii;
 use self::master_keys::MasterKey;
 use self::passwords::Passwords;
@@ -12,14 +16,23 @@ use self::utils::handle_error;
 use crate::handle_choices::{add_password, list_passwords, retrieve_password, update_password};
 
 use std::collections::BTreeMap;
-use std::io::{self, Write};
-use std::process;
+use std::io::{self, Read, Write};
+use std::{fs, process};
 
 fn main() {
     draw_ascii();
-    let key = prompt("Enter the Master Key".to_string());
-    let master_key = MasterKey::new(&key);
-    println!("Master Key saved: {}", master_key.key);
+    let mut validated = false;
+
+    while !validated {
+        let key = prompt_password("Enter master Key: ").unwrap();
+        let master_key = MasterKey::new(&key);
+        if !validate_master_key(master_key).unwrap() {
+            eprintln!("Wrong master Key");
+            continue;
+        } else {
+            validated = true;
+        }
+    }
 
     let options = BTreeMap::from([
         ("1", "Add a new password"),
@@ -80,4 +93,39 @@ fn prompt(message: String) -> String {
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
     input.trim().to_string()
+}
+
+fn validate_master_key(master_key: MasterKey) -> io::Result<bool> {
+    let filepath = home_dir()
+        .unwrap()
+        .join("weep/key.txt")
+        .to_string_lossy()
+        .to_string();
+
+    let content = read_from_file(&filepath).unwrap();
+    if content.is_empty() {
+        let pass_hash = hash(&master_key.key, DEFAULT_COST).unwrap();
+        write_to_file(&filepath, pass_hash).unwrap();
+        return Ok(true);
+    }
+
+    Ok(verify(master_key.key, &content).unwrap_or(false))
+}
+
+fn read_from_file(filepath: &str) -> io::Result<String> {
+    let mut file = fs::OpenOptions::new().read(true).open(filepath)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+
+    Ok(content)
+}
+
+fn write_to_file(filepath: &str, content: String) -> io::Result<()> {
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(filepath)?;
+    file.write_all(content.as_bytes())?;
+    Ok(())
 }
