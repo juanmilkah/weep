@@ -10,23 +10,31 @@ use home::home_dir;
 use rpassword::prompt_password;
 
 use self::ascii_art::draw_ascii;
+use self::handle_choices::change_master_key;
 use self::master_keys::MasterKey;
 use self::passwords::Passwords;
 use self::utils::handle_error;
 use crate::handle_choices::{add_password, list_passwords, retrieve_password, update_password};
 
 use std::collections::BTreeMap;
+use std::fs::File;
 use std::io::{self, Read, Write};
 use std::{fs, process};
 
 fn main() {
     draw_ascii();
     let mut validated = false;
+    let key_filepath = home_dir()
+        .unwrap()
+        .join("weep/key.txt")
+        .to_string_lossy()
+        .to_string();
+    key_file_exists(&key_filepath);
 
     while !validated {
         let key = prompt_password("Enter master Key: ").unwrap();
         let master_key = MasterKey::new(&key);
-        if !validate_master_key(master_key).unwrap() {
+        if !validate_master_key(&key_filepath, master_key).unwrap() {
             eprintln!("Wrong master Key");
             continue;
         } else {
@@ -39,7 +47,8 @@ fn main() {
         ("2", "Retrieve a password"),
         ("3", "List all services"),
         ("4", "Update Service Password"),
-        ("5", "Exit"),
+        ("5", "Change Master Key"),
+        ("6", "Exit"),
     ]);
 
     let mut database = Passwords::new();
@@ -76,7 +85,14 @@ fn main() {
                     }
                     Err(e) => handle_error(Box::new(e)),
                 },
-                5 => process::exit(0),
+                5 => match change_master_key(&key_filepath) {
+                    Ok(_) => continue,
+                    Err(e) => handle_error(Box::new(e)),
+                },
+                6 => {
+                    println!("Goodbye!");
+                    process::exit(0);
+                }
                 _ => {
                     println!("{choice}");
                     process::exit(1)
@@ -95,24 +111,18 @@ fn prompt(message: String) -> String {
     input.trim().to_string()
 }
 
-fn validate_master_key(master_key: MasterKey) -> io::Result<bool> {
-    let filepath = home_dir()
-        .unwrap()
-        .join("weep/key.txt")
-        .to_string_lossy()
-        .to_string();
-
-    let content = read_from_file(&filepath).unwrap();
+fn validate_master_key(filepath: &str, master_key: MasterKey) -> io::Result<bool> {
+    let content = read_from_file(filepath).unwrap();
     if content.is_empty() {
         let pass_hash = hash(&master_key.key, DEFAULT_COST).unwrap();
-        write_to_file(&filepath, pass_hash).unwrap();
+        write_to_file(filepath, pass_hash).unwrap();
         return Ok(true);
     }
 
     Ok(verify(master_key.key, &content).unwrap_or(false))
 }
 
-fn read_from_file(filepath: &str) -> io::Result<String> {
+pub fn read_from_file(filepath: &str) -> io::Result<String> {
     let mut file = fs::OpenOptions::new().read(true).open(filepath)?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;
@@ -120,7 +130,7 @@ fn read_from_file(filepath: &str) -> io::Result<String> {
     Ok(content)
 }
 
-fn write_to_file(filepath: &str, content: String) -> io::Result<()> {
+pub fn write_to_file(filepath: &str, content: String) -> io::Result<()> {
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create(true)
@@ -128,4 +138,10 @@ fn write_to_file(filepath: &str, content: String) -> io::Result<()> {
         .open(filepath)?;
     file.write_all(content.as_bytes())?;
     Ok(())
+}
+
+fn key_file_exists(filepath: &str) {
+    if File::open(filepath).is_err() {
+        File::create(filepath).expect("Failed to create key file");
+    }
 }

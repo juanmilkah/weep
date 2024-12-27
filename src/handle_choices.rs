@@ -1,6 +1,11 @@
 use std::io::{self, Result, Write};
 
+use bcrypt::{hash, DEFAULT_COST};
+use rpassword::prompt_password;
+
+use crate::master_keys::MasterKey;
 use crate::passwords::{Password, Passwords};
+use crate::{validate_master_key, write_to_file};
 
 pub fn add_password(mut database: Passwords) -> io::Result<Passwords> {
     let service_name = prompt("Service Name: ");
@@ -64,10 +69,49 @@ pub fn list_passwords(database: &Passwords) -> io::Result<()> {
     Ok(())
 }
 
+pub fn change_master_key(key_filepath: &str) -> Result<()> {
+    let mut validated = false;
+    let mut count = 2;
+
+    while count != 0 && !validated {
+        let old_key = prompt_password("Enter current Master key: ").unwrap();
+        let old_key = MasterKey { key: old_key };
+        if validate_master_key(key_filepath, old_key).unwrap() {
+            validated = true;
+            break;
+        }
+        count -= 1;
+        eprintln!("Wrong Master key! {} atempts remaining!", count);
+    }
+    if !validated {
+        eprintln!("Too many incorrect attempts!");
+        return Ok(());
+    }
+
+    let new_key = prompt_password("Enter new Master Key: ").unwrap();
+    let second_key = prompt_password("Re-Enter the New Master Key: ").unwrap();
+    if new_key != second_key {
+        eprintln!("Passwords do not match!");
+        return Ok(());
+    }
+    let new_key = MasterKey { key: new_key };
+    let hashed_key = hash_password(&new_key.key)?;
+
+    write_to_file(key_filepath, hashed_key)?;
+    println!("Master Key successfully updated!");
+
+    Ok(())
+}
+
 fn prompt(message: &str) -> String {
     print!("{message}");
     io::stdout().flush().unwrap();
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
     input.trim().to_string()
+}
+
+fn hash_password(password: &str) -> Result<String> {
+    let hashed_pass = hash(password, DEFAULT_COST);
+    Ok(hashed_pass.unwrap())
 }
