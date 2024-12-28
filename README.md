@@ -1,3 +1,3 @@
 # Password Manager
 
-Use master key **secret_key** for testing.
+Use master key **mike** for testing.

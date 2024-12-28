@@ -54,7 +54,7 @@ pub fn update_password(mut database: Passwords) -> Result<Passwords> {
 pub fn list_passwords(database: &Passwords) -> io::Result<()> {
     match database.list() {
         Some(list) => {
-            for pass in list.passwords {
+            for pass in list {
                 println!(
                     "Service: {:?}\tPassword: {:?}",
                     pass.1.service, pass.1.password
@@ -69,14 +69,15 @@ pub fn list_passwords(database: &Passwords) -> io::Result<()> {
     Ok(())
 }
 
-pub fn change_master_key(key_filepath: &str) -> Result<()> {
+pub fn change_master_key(master_key: MasterKey) -> Result<()> {
     let mut validated = false;
     let mut count = 2;
 
     while count != 0 && !validated {
         let old_key = prompt_password("Enter current Master key: ").unwrap();
-        let old_key = MasterKey { key: old_key };
-        if validate_master_key(key_filepath, old_key).unwrap() {
+        let mut cloned_master_key = master_key.clone();
+        cloned_master_key.key = old_key;
+        if validate_master_key(cloned_master_key).unwrap() {
             validated = true;
             break;
         }
@@ -94,10 +95,9 @@ pub fn change_master_key(key_filepath: &str) -> Result<()> {
         eprintln!("Passwords do not match!");
         return Ok(());
     }
-    let new_key = MasterKey { key: new_key };
-    let hashed_key = hash_password(&new_key.key)?;
+    let hashed_key = hash_password(&new_key)?;
 
-    write_to_file(key_filepath, hashed_key)?;
+    write_to_file(&master_key.filepath, hashed_key)?;
     println!("Master Key successfully updated!");
 
     Ok(())

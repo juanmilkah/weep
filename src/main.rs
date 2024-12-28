@@ -24,21 +24,31 @@ use std::{fs, process};
 fn main() {
     draw_ascii();
     let mut validated = false;
+
+    let passwords_filepath = home_dir()
+        .unwrap()
+        .join("weep/passwords")
+        .to_string_lossy()
+        .to_string();
+
     let key_filepath = home_dir()
         .unwrap()
-        .join("weep/key.txt")
+        .join("weep/key")
         .to_string_lossy()
         .to_string();
     key_file_exists(&key_filepath);
 
+    let mut master_key: MasterKey = MasterKey::default();
+
     while !validated {
         let key = prompt_password("Enter master Key: ").unwrap();
-        let master_key = MasterKey::new(&key);
-        if !validate_master_key(&key_filepath, master_key).unwrap() {
+        let ll_master_key = MasterKey::new(&key, key_filepath.clone());
+        if !validate_master_key(ll_master_key.clone()).unwrap() {
             eprintln!("Wrong master Key");
             continue;
         } else {
             validated = true;
+            master_key = ll_master_key;
         }
     }
 
@@ -52,7 +62,7 @@ fn main() {
         ("7", "Exit"),
     ]);
 
-    let mut database = Passwords::new();
+    let mut database = Passwords::new(passwords_filepath);
 
     loop {
         println!("Choose an option: ");
@@ -93,7 +103,7 @@ fn main() {
                     }
                     Err(e) => handle_error(Box::new(e)),
                 },
-                6 => match change_master_key(&key_filepath) {
+                6 => match change_master_key(master_key.clone()) {
                     Ok(_) => continue,
                     Err(e) => handle_error(Box::new(e)),
                 },
@@ -119,11 +129,11 @@ fn prompt(message: String) -> String {
     input.trim().to_string()
 }
 
-fn validate_master_key(filepath: &str, master_key: MasterKey) -> io::Result<bool> {
-    let content = read_from_file(filepath).unwrap();
+fn validate_master_key(master_key: MasterKey) -> io::Result<bool> {
+    let content = read_from_file(&master_key.filepath).unwrap();
     if content.is_empty() {
         let pass_hash = hash(&master_key.key, DEFAULT_COST).unwrap();
-        write_to_file(filepath, pass_hash).unwrap();
+        write_to_file(&master_key.filepath, pass_hash).unwrap();
         return Ok(true);
     }
 

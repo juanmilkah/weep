@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Result, Write};
-use std::path::PathBuf;
 
-use home::home_dir;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +13,7 @@ pub struct Password {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Passwords {
     pub passwords: BTreeMap<String, Password>,
+    pub filepath: String,
 }
 
 impl Password {
@@ -27,17 +26,21 @@ impl Password {
 }
 
 impl Passwords {
-    pub fn new() -> Passwords {
-        read_passwords().unwrap()
+    pub fn new(filepath: String) -> Passwords {
+        let passwords = read_passwords(&filepath).unwrap();
+        Passwords {
+            passwords,
+            filepath,
+        }
     }
 
     pub fn add(&mut self, password: Password) {
         self.passwords.insert(password.service.clone(), password);
-        write_passwords(self.passwords.clone()).unwrap();
+        write_passwords(self.passwords.clone(), &self.filepath).unwrap();
     }
 
-    pub fn list(&self) -> Option<Passwords> {
-        match read_passwords() {
+    pub fn list(&self) -> Option<BTreeMap<String, Password>> {
+        match read_passwords(&self.filepath) {
             Ok(list) => Some(list),
             Err(_) => None,
         }
@@ -49,14 +52,12 @@ impl Passwords {
 
     pub fn delete(&mut self, service_name: &str) {
         let _ = self.passwords.remove(service_name);
-        write_passwords(self.passwords.clone()).unwrap();
+        write_passwords(self.passwords.clone(), &self.filepath).unwrap();
     }
 }
 
-pub fn read_passwords() -> Result<Passwords> {
-    let home_directory = get_home_dir();
-    let filepath = home_directory.join("weep/passwords.json");
-    let file = fs::OpenOptions::new().read(true).open(&filepath);
+pub fn read_passwords(filepath: &str) -> Result<BTreeMap<String, Password>> {
+    let file = fs::OpenOptions::new().read(true).open(filepath);
     let mut file = match file {
         Ok(v) => v,
         Err(_) => fs::OpenOptions::new()
@@ -69,20 +70,16 @@ pub fn read_passwords() -> Result<Passwords> {
     file.read_to_string(&mut content)?;
 
     if content.is_empty() {
-        return Ok(Passwords {
-            passwords: BTreeMap::new(),
-        });
+        return Ok(BTreeMap::new());
     }
 
     let passwords: BTreeMap<String, Password> = serde_json::from_str(&content)?;
-    Ok(Passwords { passwords })
+    Ok(passwords)
 }
 
-pub fn write_passwords(passwords: BTreeMap<String, Password>) -> Result<()> {
+pub fn write_passwords(passwords: BTreeMap<String, Password>, filepath: &str) -> Result<()> {
     let json_string = serde_json::to_string_pretty(&passwords)?;
 
-    let home_directory = get_home_dir();
-    let filepath = home_directory.join("weep/passwords.json");
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create(true)
@@ -90,8 +87,4 @@ pub fn write_passwords(passwords: BTreeMap<String, Password>) -> Result<()> {
         .open(filepath)?;
     file.write_all(json_string.as_bytes())?;
     Ok(())
-}
-
-fn get_home_dir() -> PathBuf {
-    home_dir().unwrap()
 }
