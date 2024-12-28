@@ -10,7 +10,7 @@ use home::home_dir;
 use rpassword::prompt_password;
 
 use self::ascii_art::draw_ascii;
-use self::handle_choices::change_master_key;
+use self::handle_choices::{change_master_key, delete_password};
 use self::master_keys::MasterKey;
 use self::passwords::Passwords;
 use self::utils::handle_error;
@@ -47,8 +47,9 @@ fn main() {
         ("2", "Retrieve a password"),
         ("3", "List all services"),
         ("4", "Update Service Password"),
-        ("5", "Change Master Key"),
-        ("6", "Exit"),
+        ("5", "Delete Sevice Password"),
+        ("6", "Change Master Key"),
+        ("7", "Exit"),
     ]);
 
     let mut database = Passwords::new();
@@ -85,17 +86,24 @@ fn main() {
                     }
                     Err(e) => handle_error(Box::new(e)),
                 },
-                5 => match change_master_key(&key_filepath) {
+                5 => match delete_password(database.clone()) {
+                    Ok(db) => {
+                        database = db;
+                        continue;
+                    }
+                    Err(e) => handle_error(Box::new(e)),
+                },
+                6 => match change_master_key(&key_filepath) {
                     Ok(_) => continue,
                     Err(e) => handle_error(Box::new(e)),
                 },
-                6 => {
+                7 => {
                     println!("Goodbye!");
                     process::exit(0);
                 }
                 _ => {
-                    println!("{choice}");
-                    process::exit(1)
+                    println!("Invalid Choice! {choice}");
+                    continue;
                 }
             },
             Err(_) => eprintln!("Invalid input"),

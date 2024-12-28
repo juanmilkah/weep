@@ -46,6 +46,11 @@ impl Passwords {
     pub fn search(&self, service_name: &str) -> Option<Password> {
         self.passwords.get(service_name).cloned()
     }
+
+    pub fn delete(&mut self, service_name: &str) {
+        let _ = self.passwords.remove(service_name);
+        write_passwords(self.passwords.clone()).unwrap();
+    }
 }
 
 pub fn read_passwords() -> Result<Passwords> {
@@ -63,6 +68,12 @@ pub fn read_passwords() -> Result<Passwords> {
     let mut content = String::new();
     file.read_to_string(&mut content)?;
 
+    if content.is_empty() {
+        return Ok(Passwords {
+            passwords: BTreeMap::new(),
+        });
+    }
+
     let passwords: BTreeMap<String, Password> = serde_json::from_str(&content)?;
     Ok(Passwords { passwords })
 }
@@ -72,7 +83,11 @@ pub fn write_passwords(passwords: BTreeMap<String, Password>) -> Result<()> {
 
     let home_directory = get_home_dir();
     let filepath = home_directory.join("weep/passwords.json");
-    let mut file = fs::OpenOptions::new().write(true).open(filepath)?;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(filepath)?;
     file.write_all(json_string.as_bytes())?;
     Ok(())
 }

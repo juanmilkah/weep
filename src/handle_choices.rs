@@ -38,7 +38,7 @@ pub fn update_password(mut database: Passwords) -> Result<Passwords> {
         }
     }
 
-    let new_password = prompt("Enter a new password: ");
+    let new_password = prompt_password("Enter a new password: ").unwrap();
     let new_password = Password {
         service: service_name,
         password: new_password,
@@ -101,6 +101,31 @@ pub fn change_master_key(key_filepath: &str) -> Result<()> {
     println!("Master Key successfully updated!");
 
     Ok(())
+}
+
+pub fn delete_password(mut database: Passwords) -> Result<Passwords> {
+    let service_name = prompt("Enter service name to Delete: ");
+    let confirm = prompt("Are you sure(yes/no): ");
+
+    match confirm.to_lowercase().as_str() {
+        "y" | "yes" => match database.search(&service_name) {
+            Some(_) => {
+                database.delete(&service_name);
+                println!("Password deleted!");
+            }
+            None => eprintln!("Password does not exist!"),
+        },
+        "n" | "no" => {
+            println!("Password not deleted!");
+            return Ok(database);
+        }
+        _ => {
+            eprintln!("Wrong Input!");
+            return Ok(database);
+        }
+    }
+
+    Ok(database)
 }
 
 fn prompt(message: &str) -> String {
