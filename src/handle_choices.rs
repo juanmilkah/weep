@@ -14,7 +14,7 @@ pub fn add_password(mut database: Passwords) -> io::Result<Passwords> {
 
     database.add(new_password.clone());
 
-    println!("Password Added!");
+    println!("Password Saved!");
     println!("{:?}", new_password);
     Ok(database)
 }

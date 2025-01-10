@@ -56,13 +56,13 @@ fn main() {
     }
 
     let options = BTreeMap::from([
-        ("1", "Add a new password"),
-        ("2", "Retrieve a password"),
-        ("3", "List all services"),
-        ("4", "Update Service Password"),
-        ("5", "Delete Sevice Password"),
-        ("6", "Change Master Key"),
-        ("7", "Exit"),
+        ("a", "Add a new password"),
+        ("r", "Retrieve a password"),
+        ("l", "List all services"),
+        ("u", "Update Service Password"),
+        ("d", "Delete Sevice Password"),
+        ("c", "Change Master Key"),
+        ("q", "Exit"),
     ]);
 
     decrypt_file(&master_key.key, &passwords_filepath, &passwords_filepath)
@@ -78,51 +78,45 @@ fn main() {
 
         let choice = prompt("Your Choice:".to_string());
 
-        match choice.parse() {
-            Ok(v) => match v {
-                1 => match add_password(database.clone()) {
-                    Ok(db) => {
-                        database = db;
-                        continue;
-                    }
-                    Err(e) => handle_error(Box::new(e)),
-                },
-                2 => match retrieve_password(&database) {
-                    Ok(_) => continue,
-                    Err(e) => handle_error(Box::new(e)),
-                },
-                3 => match list_passwords(&database) {
-                    Ok(_) => continue,
-                    Err(e) => handle_error(Box::new(e)),
-                },
-                4 => match update_password(database.clone()) {
-                    Ok(db) => {
-                        database = db;
-                        continue;
-                    }
-                    Err(e) => handle_error(Box::new(e)),
-                },
-                5 => match delete_password(database.clone()) {
-                    Ok(db) => {
-                        database = db;
-                        continue;
-                    }
-                    Err(e) => handle_error(Box::new(e)),
-                },
-                6 => match change_master_key(master_key.clone()) {
-                    Ok(new_master_key) => master_key = new_master_key,
-                    Err(e) => handle_error(Box::new(e)),
-                },
-                7 => handle_exit(master_key.clone(), &passwords_filepath),
-                _ => {
-                    println!("Invalid Choice! {choice}");
+        match choice.to_lowercase().chars().next().unwrap() {
+            'a' => match add_password(database.clone()) {
+                Ok(db) => {
+                    database = db;
                     continue;
                 }
+                Err(e) => handle_error(Box::new(e)),
             },
-            Err(_) => match choice.as_str() {
-                "q" => handle_exit(master_key.clone(), &passwords_filepath),
-                _ => println!("Invalid Input"),
+            'r' => match retrieve_password(&database) {
+                Ok(_) => continue,
+                Err(e) => handle_error(Box::new(e)),
             },
+            'l' => match list_passwords(&database) {
+                Ok(_) => continue,
+                Err(e) => handle_error(Box::new(e)),
+            },
+            'u' => match update_password(database.clone()) {
+                Ok(db) => {
+                    database = db;
+                    continue;
+                }
+                Err(e) => handle_error(Box::new(e)),
+            },
+            'd' => match delete_password(database.clone()) {
+                Ok(db) => {
+                    database = db;
+                    continue;
+                }
+                Err(e) => handle_error(Box::new(e)),
+            },
+            'c' => match change_master_key(master_key.clone()) {
+                Ok(new_master_key) => master_key = new_master_key,
+                Err(e) => handle_error(Box::new(e)),
+            },
+            'q' => handle_exit(master_key.clone(), &passwords_filepath),
+            _ => {
+                println!("Invalid Choice!");
+                continue;
+            }
         }
     }
 }
