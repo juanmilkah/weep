@@ -17,7 +17,7 @@ pub struct Passwords {
 }
 
 impl Password {
-    pub fn new(key: &str, value: &str) -> Password {
+    pub fn new(key: &str, value: &str) -> Self {
         Password {
             service: key.to_string(),
             password: value.to_string(),
@@ -26,7 +26,7 @@ impl Password {
 }
 
 impl Passwords {
-    pub fn new(filepath: String) -> Passwords {
+    pub fn new(filepath: String) -> Self {
         let passwords = read_passwords(&filepath).unwrap();
         Passwords {
             passwords,

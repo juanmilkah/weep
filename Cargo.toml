@@ -7,8 +7,11 @@ authors=["Juan Milkah <juanmilkah@gmail.com>"]
 license="MIT"
 
 [dependencies]
+argon2 = "0.5.3"
 bcrypt = "0.16.0"
+chacha20poly1305 = "0.10.1"
 home = "0.5.11"
+rand = "0.8.5"
 rpassword = "7.3.1"
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"

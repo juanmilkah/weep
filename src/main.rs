@@ -1,5 +1,6 @@
 mod ascii_art;
 mod config;
+mod file_encryption;
 mod handle_choices;
 mod master_keys;
 mod passwords;
@@ -10,6 +11,7 @@ use home::home_dir;
 use rpassword::prompt_password;
 
 use self::ascii_art::draw_ascii;
+use self::file_encryption::{decrypt_file, encrypt_file};
 use self::handle_choices::{change_master_key, delete_password};
 use self::master_keys::MasterKey;
 use self::passwords::Passwords;
@@ -36,7 +38,8 @@ fn main() {
         .join("weep/key")
         .to_string_lossy()
         .to_string();
-    key_file_exists(&key_filepath);
+    file_exists(&key_filepath);
+    file_exists(&passwords_filepath);
 
     let mut master_key: MasterKey = MasterKey::default();
 
@@ -62,7 +65,10 @@ fn main() {
         ("7", "Exit"),
     ]);
 
-    let mut database = Passwords::new(passwords_filepath);
+    decrypt_file(&master_key.key, &passwords_filepath, &passwords_filepath)
+        .expect("Failed to decrypt database");
+
+    let mut database = Passwords::new(passwords_filepath.clone());
 
     loop {
         println!("Choose an option: ");
@@ -104,21 +110,28 @@ fn main() {
                     Err(e) => handle_error(Box::new(e)),
                 },
                 6 => match change_master_key(master_key.clone()) {
-                    Ok(_) => continue,
+                    Ok(new_master_key) => master_key = new_master_key,
                     Err(e) => handle_error(Box::new(e)),
                 },
-                7 => {
-                    println!("Goodbye!");
-                    process::exit(0);
-                }
+                7 => handle_exit(master_key.clone(), &passwords_filepath),
                 _ => {
                     println!("Invalid Choice! {choice}");
                     continue;
                 }
             },
-            Err(_) => eprintln!("Invalid input"),
+            Err(_) => match choice.as_str() {
+                "q" => handle_exit(master_key.clone(), &passwords_filepath),
+                _ => println!("Invalid Input"),
+            },
         }
     }
+}
+
+fn handle_exit(master_key: MasterKey, filepath: &str) {
+    println!("Wait a minute...");
+    encrypt_file(&master_key.key, filepath, filepath).expect("Failed to encrypt passwords");
+    println!("Goodbye!");
+    process::exit(0);
 }
 
 fn prompt(message: String) -> String {
@@ -158,7 +171,7 @@ pub fn write_to_file(filepath: &str, content: String) -> io::Result<()> {
     Ok(())
 }
 
-fn key_file_exists(filepath: &str) {
+fn file_exists(filepath: &str) {
     if File::open(filepath).is_err() {
         File::create(filepath).expect("Failed to create key file");
     }

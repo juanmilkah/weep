@@ -69,7 +69,7 @@ pub fn list_passwords(database: &Passwords) -> io::Result<()> {
     Ok(())
 }
 
-pub fn change_master_key(master_key: MasterKey) -> Result<()> {
+pub fn change_master_key(master_key: MasterKey) -> Result<MasterKey> {
     let mut validated = false;
     let mut count = 2;
 
@@ -86,21 +86,24 @@ pub fn change_master_key(master_key: MasterKey) -> Result<()> {
     }
     if !validated {
         eprintln!("Too many incorrect attempts!");
-        return Ok(());
+        return Ok(master_key);
     }
 
     let new_key = prompt_password("Enter new Master Key: ").unwrap();
     let second_key = prompt_password("Re-Enter the New Master Key: ").unwrap();
     if new_key != second_key {
         eprintln!("Passwords do not match!");
-        return Ok(());
+        return Ok(master_key);
     }
     let hashed_key = hash_password(&new_key)?;
 
     write_to_file(&master_key.filepath, hashed_key)?;
     println!("Master Key successfully updated!");
 
-    Ok(())
+    Ok(MasterKey {
+        key: new_key,
+        filepath: master_key.filepath,
+    })
 }
 
 pub fn delete_password(mut database: Passwords) -> Result<Passwords> {
