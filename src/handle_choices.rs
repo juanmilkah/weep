@@ -3,16 +3,20 @@ use std::io::{self, Result, Write};
 use bcrypt::{hash, DEFAULT_COST};
 use rpassword::prompt_password;
 
+use crate::file_encryption::encrypt_file;
 use crate::master_keys::MasterKey;
 use crate::passwords::{Password, Passwords};
 use crate::{validate_master_key, write_to_file};
 
-pub fn add_password(mut database: Passwords) -> io::Result<Passwords> {
+pub fn add_password(master_key: &MasterKey, mut database: Passwords) -> io::Result<Passwords> {
     let service_name = prompt("Service Name: ");
     let service_password = prompt("Service_password: ");
     let new_password = Password::new(&service_name, &service_password);
 
     database.add(new_password.clone());
+    let serialized_bytes = bincode::serialize(&database.passwords).unwrap();
+    encrypt_file(&master_key.key, &serialized_bytes, &database.filepath)
+        .expect("Failed to encrypt database");
 
     println!("Password Saved!");
     println!("{:?}", new_password);
@@ -28,7 +32,7 @@ pub fn retrieve_password(database: &Passwords) -> Result<()> {
     Ok(())
 }
 
-pub fn update_password(mut database: Passwords) -> Result<Passwords> {
+pub fn update_password(master_key: &MasterKey, mut database: Passwords) -> Result<Passwords> {
     let service_name = prompt("Enter Service Name: ");
     match database.search(&service_name) {
         Some(val) => println!("{:?}", val),
@@ -38,13 +42,18 @@ pub fn update_password(mut database: Passwords) -> Result<Passwords> {
         }
     }
 
-    let new_password = prompt_password("Enter a new password: ").unwrap();
+    let new_password = prompt("Enter a new password: ");
     let new_password = Password {
         service: service_name,
         password: new_password,
     };
 
     database.add(new_password.clone());
+
+    let serialized_bytes = bincode::serialize(&database.passwords).unwrap();
+    encrypt_file(&master_key.key, &serialized_bytes, &database.filepath)
+        .expect("Failed to encrypt database");
+
     println!("Password Updated!");
     println!("{:?}", new_password);
 
@@ -69,7 +78,7 @@ pub fn list_passwords(database: &Passwords) -> io::Result<()> {
     Ok(())
 }
 
-pub fn change_master_key(master_key: MasterKey) -> Result<MasterKey> {
+pub fn change_master_key(master_key: MasterKey, database: Passwords) -> Result<MasterKey> {
     let mut validated = false;
     let mut count = 2;
 
@@ -98,6 +107,11 @@ pub fn change_master_key(master_key: MasterKey) -> Result<MasterKey> {
     let hashed_key = hash_password(&new_key)?;
 
     write_to_file(&master_key.filepath, hashed_key)?;
+
+    let serialized_bytes = bincode::serialize(&database.passwords).unwrap();
+    encrypt_file(&new_key, &serialized_bytes, &database.filepath)
+        .expect("Failed to encrypt database");
+
     println!("Master Key successfully updated!");
 
     Ok(MasterKey {
@@ -106,7 +120,7 @@ pub fn change_master_key(master_key: MasterKey) -> Result<MasterKey> {
     })
 }
 
-pub fn delete_password(mut database: Passwords) -> Result<Passwords> {
+pub fn delete_password(master_key: &MasterKey, mut database: Passwords) -> Result<Passwords> {
     let service_name = prompt("Enter service name to Delete: ");
     let confirm = prompt("Are you sure(yes/no): ");
 
@@ -114,6 +128,11 @@ pub fn delete_password(mut database: Passwords) -> Result<Passwords> {
         "y" | "yes" => match database.search(&service_name) {
             Some(_) => {
                 database.delete(&service_name);
+
+                let serialized_bytes = bincode::serialize(&database.passwords).unwrap();
+                encrypt_file(&master_key.key, &serialized_bytes, &database.filepath)
+                    .expect("Failed to encrypt database");
+
                 println!("Password deleted!");
             }
             None => eprintln!("Password does not exist!"),

@@ -2,8 +2,11 @@ use argon2::{self, Argon2};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use rand::Rng;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Write};
+
+use crate::passwords::Database;
 
 fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
     let mut output_key_material = [0u8; 32];
@@ -13,7 +16,7 @@ fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
     output_key_material
 }
 
-pub fn encrypt_file(password: &str, input_file: &str, output_file: &str) -> std::io::Result<()> {
+pub fn encrypt_file(password: &str, content: &[u8], output_file: &str) -> std::io::Result<()> {
     // Generate a random salt for key derivation
     let mut salt = [0u8; 16];
     rand::thread_rng().fill(&mut salt);
@@ -25,16 +28,12 @@ pub fn encrypt_file(password: &str, input_file: &str, output_file: &str) -> std:
     // Generate a random nonce for encryption
     let nonce = Nonce::from(rand::thread_rng().gen::<[u8; 12]>());
 
-    // Read input file content
-    let mut input = Vec::new();
-    File::open(input_file)?.read_to_end(&mut input)?;
-
     // Encrypt the content
     let ciphertext = cipher
         .encrypt(
             &nonce,
             Payload {
-                msg: &input,
+                msg: content,
                 aad: &[],
             },
         )
@@ -48,12 +47,12 @@ pub fn encrypt_file(password: &str, input_file: &str, output_file: &str) -> std:
     Ok(())
 }
 
-pub fn decrypt_file(password: &str, input_file: &str, output_file: &str) -> std::io::Result<()> {
+pub fn decrypt_file(password: &str, input_file: &str) -> std::io::Result<Database> {
     // Read the encrypted file content
     let mut input = Vec::new();
     File::open(input_file)?.read_to_end(&mut input)?;
     if input.is_empty() {
-        return Ok(());
+        return Ok(BTreeMap::new());
     }
 
     // Extract the salt, nonce, and ciphertext
@@ -75,8 +74,7 @@ pub fn decrypt_file(password: &str, input_file: &str, output_file: &str) -> std:
         )
         .expect("Decryption failed");
 
-    // Write the plaintext to the output file
-    let mut output = File::create(output_file)?;
-    output.write_all(&plaintext)?;
-    Ok(())
+    let database: Database =
+        bincode::deserialize(&plaintext).expect("Failed to deserialize bytes into map");
+    Ok(database)
 }

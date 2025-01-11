@@ -65,10 +65,10 @@ fn main() {
         ("q", "Exit"),
     ]);
 
-    decrypt_file(&master_key.key, &passwords_filepath, &passwords_filepath)
-        .expect("Failed to decrypt database");
+    let database =
+        decrypt_file(&master_key.key, &passwords_filepath).expect("Failed to decrypt database");
 
-    let mut database = Passwords::new(passwords_filepath.clone());
+    let mut database = Passwords::new(database, passwords_filepath.clone());
 
     loop {
         println!("Choose an option: ");
@@ -79,7 +79,7 @@ fn main() {
         let choice = prompt("Your Choice:".to_string());
 
         match choice.to_lowercase().chars().next().unwrap() {
-            'a' => match add_password(database.clone()) {
+            'a' => match add_password(&master_key, database.clone()) {
                 Ok(db) => {
                     database = db;
                     continue;
@@ -94,25 +94,25 @@ fn main() {
                 Ok(_) => continue,
                 Err(e) => handle_error(Box::new(e)),
             },
-            'u' => match update_password(database.clone()) {
+            'u' => match update_password(&master_key, database.clone()) {
                 Ok(db) => {
                     database = db;
                     continue;
                 }
                 Err(e) => handle_error(Box::new(e)),
             },
-            'd' => match delete_password(database.clone()) {
+            'd' => match delete_password(&master_key, database.clone()) {
                 Ok(db) => {
                     database = db;
                     continue;
                 }
                 Err(e) => handle_error(Box::new(e)),
             },
-            'c' => match change_master_key(master_key.clone()) {
+            'c' => match change_master_key(master_key.clone(), database.clone()) {
                 Ok(new_master_key) => master_key = new_master_key,
                 Err(e) => handle_error(Box::new(e)),
             },
-            'q' => handle_exit(master_key.clone(), &passwords_filepath),
+            'q' => handle_exit(master_key.clone(), database.clone()),
             _ => {
                 println!("Invalid Choice!");
                 continue;
@@ -121,9 +121,14 @@ fn main() {
     }
 }
 
-fn handle_exit(master_key: MasterKey, filepath: &str) {
+fn handle_exit(master_key: MasterKey, database: Passwords) {
     println!("Wait a minute...");
-    encrypt_file(&master_key.key, filepath, filepath).expect("Failed to encrypt passwords");
+    //convert the database to bytes
+
+    let serialized_bytes =
+        bincode::serialize(&database.passwords).expect("Failed to serialize bytes");
+    encrypt_file(&master_key.key, &serialized_bytes, &database.filepath)
+        .expect("Failed to encrypt passwords");
     println!("Goodbye!");
     process::exit(0);
 }
