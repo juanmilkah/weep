@@ -1,10 +1,8 @@
 mod ascii_art;
-mod config;
 mod file_encryption;
 mod handle_choices;
 mod master_keys;
 mod passwords;
-mod utils;
 
 use bcrypt::{hash, verify, DEFAULT_COST};
 use home::home_dir;
@@ -15,7 +13,6 @@ use self::file_encryption::{decrypt_file, encrypt_file};
 use self::handle_choices::{change_master_key, delete_password, hash_password};
 use self::master_keys::MasterKey;
 use self::passwords::Passwords;
-use self::utils::handle_error;
 use crate::handle_choices::{add_password, list_passwords, retrieve_password, update_password};
 
 use std::collections::BTreeMap;
@@ -47,18 +44,20 @@ fn main() {
         validated = true;
     }
 
-    while !validated {
-        let key = prompt_password("Enter master Key: ").unwrap();
-        let ll_master_key = MasterKey::new(&key, key_filepath.clone());
-        if !validate_master_key(ll_master_key.clone()).unwrap() {
-            eprintln!("Wrong master Key");
-            continue;
-        } else {
-            validated = true;
-            master_key = ll_master_key;
-        }
+    if !validated {
+        master_key = validate_master_key_loop(key_filepath);
     }
 
+    let database =
+        decrypt_file(&master_key.key, &passwords_filepath).expect("Failed to decrypt database");
+
+    let database = Passwords::new(database, passwords_filepath.clone());
+
+    /*main program */
+    run(database, master_key)
+}
+
+fn run(mut database: Passwords, mut master_key: MasterKey) {
     let options = BTreeMap::from([
         ("a", "Add a new password"),
         ("r", "Retrieve a password"),
@@ -68,11 +67,6 @@ fn main() {
         ("c", "Change Master Key"),
         ("q", "Exit"),
     ]);
-
-    let database =
-        decrypt_file(&master_key.key, &passwords_filepath).expect("Failed to decrypt database");
-
-    let mut database = Passwords::new(database, passwords_filepath.clone());
 
     loop {
         println!("Choose an option: ");
@@ -88,39 +82,51 @@ fn main() {
                     database = db;
                     continue;
                 }
-                Err(e) => handle_error(Box::new(e)),
+                Err(e) => eprintln!("Failed to add password! {:?}", e),
             },
             'r' => match retrieve_password(&database) {
                 Ok(_) => continue,
-                Err(e) => handle_error(Box::new(e)),
+                Err(e) => eprintln!("Failed to retrive password! {:?}", e),
             },
             'l' => match list_passwords(&database) {
                 Ok(_) => continue,
-                Err(e) => handle_error(Box::new(e)),
+                Err(e) => eprintln!("Failed to list passwords! {:?}", e),
             },
             'u' => match update_password(&master_key, database.clone()) {
                 Ok(db) => {
                     database = db;
                     continue;
                 }
-                Err(e) => handle_error(Box::new(e)),
+                Err(e) => eprintln!("Failed to update password! {:?}", e),
             },
             'd' => match delete_password(&master_key, database.clone()) {
                 Ok(db) => {
                     database = db;
                     continue;
                 }
-                Err(e) => handle_error(Box::new(e)),
+                Err(e) => eprintln!("Failed to delete passwords! {:?}", e),
             },
             'c' => match change_master_key(master_key.clone(), database.clone()) {
                 Ok(new_master_key) => master_key = new_master_key,
-                Err(e) => handle_error(Box::new(e)),
+                Err(e) => eprintln!("Failed to change master key! {:?}", e),
             },
             'q' => handle_exit(master_key.clone(), database.clone()),
             _ => {
                 println!("Invalid Choice!");
                 continue;
             }
+        }
+    }
+}
+
+fn validate_master_key_loop(key_filepath: String) -> MasterKey {
+    loop {
+        let key = prompt_password("Enter master Key: ").unwrap();
+        let ll_master_key = MasterKey::new(&key, key_filepath.clone());
+        if validate_master_key(ll_master_key.clone()).unwrap_or(false) {
+            return ll_master_key;
+        } else {
+            eprintln!("Wrong master Key");
         }
     }
 }
