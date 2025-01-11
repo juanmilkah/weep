@@ -158,7 +158,7 @@ fn prompt(message: &str) -> String {
     input.trim().to_string()
 }
 
-fn hash_password(password: &str) -> Result<String> {
+pub fn hash_password(password: &str) -> Result<String> {
     let hashed_pass = hash(password, DEFAULT_COST);
     Ok(hashed_pass.unwrap())
 }

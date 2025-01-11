@@ -38,7 +38,11 @@ impl Passwords {
     }
 
     pub fn list(&self) -> Option<Database> {
-        Some(self.passwords.clone())
+        if self.passwords.is_empty() {
+            None
+        } else {
+            Some(self.passwords.clone())
+        }
     }
 
     pub fn search(&self, service_name: &str) -> Option<Password> {

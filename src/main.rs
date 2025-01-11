@@ -12,7 +12,7 @@ use rpassword::prompt_password;
 
 use self::ascii_art::draw_ascii;
 use self::file_encryption::{decrypt_file, encrypt_file};
-use self::handle_choices::{change_master_key, delete_password};
+use self::handle_choices::{change_master_key, delete_password, hash_password};
 use self::master_keys::MasterKey;
 use self::passwords::Passwords;
 use self::utils::handle_error;
@@ -42,6 +42,10 @@ fn main() {
     file_exists(&passwords_filepath);
 
     let mut master_key: MasterKey = MasterKey::default();
+    if !key_exists(&key_filepath) {
+        master_key = create_new_master_key(&key_filepath).expect("Failed to create new master key");
+        validated = true;
+    }
 
     while !validated {
         let key = prompt_password("Enter master Key: ").unwrap();
@@ -174,4 +178,26 @@ fn file_exists(filepath: &str) {
     if File::open(filepath).is_err() {
         File::create(filepath).expect("Failed to create key file");
     }
+}
+
+fn key_exists(filepath: &str) -> bool {
+    let content = read_from_file(filepath).unwrap();
+    !content.is_empty()
+}
+
+fn create_new_master_key(key_filepath: &str) -> io::Result<MasterKey> {
+    println!("No Master Key exists!\nCreate a new Master Key!");
+    let new_key = prompt_password("Enter new Master Key: ").unwrap();
+    let rep_key = prompt_password("Re-Enter the Master Key: ").unwrap();
+    if new_key != rep_key {
+        eprintln!("Key's does not match!");
+        process::exit(0);
+    }
+
+    let master_key = MasterKey::new(&new_key, key_filepath.to_string());
+    let hashed_key = hash_password(&new_key).unwrap();
+
+    write_to_file(key_filepath, hashed_key).unwrap();
+    println!("New Master Key successfully Created!");
+    Ok(master_key)
 }
