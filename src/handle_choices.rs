@@ -1,3 +1,5 @@
+/// Weep, A Commandline Password Manager
+/// Copyright (C) 2025 Juan Milkah
 use std::io::{self, Result, Write};
 
 use bcrypt::{hash, DEFAULT_COST};

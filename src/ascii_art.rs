@@ -1,3 +1,6 @@
+/// Weep, A Commandline Password Manager
+/// Copyright (C) 2025 Juan Milkah
+
 pub fn draw_ascii() {
     let art = "                                                                                               
  ▄█     █▄     ▄████████    ▄████████    ▄███████▄ 
@@ -8,7 +11,6 @@ pub fn draw_ascii() {
 ███     ███   ███    █▄    ███    █▄    ███        
 ███ ▄█▄ ███   ███    ███   ███    ███   ███        
  ▀███▀███▀    ██████████   ██████████  ▄████▀      
-                                                   
 ";
 
     println!("{}", art);

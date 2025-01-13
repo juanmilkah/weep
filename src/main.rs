@@ -1,3 +1,5 @@
+/// Weep, A Commandline Password Manager
+/// Copyright (C) 2025 Juan Milkah
 mod ascii_art;
 mod file_encryption;
 mod handle_choices;

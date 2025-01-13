@@ -1,3 +1,5 @@
+/// Weep, A Commandline Password Manager
+/// Copyright (C) 2025 Juan Milkah
 use argon2::{self, Argon2};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
