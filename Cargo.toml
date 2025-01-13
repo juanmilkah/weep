@@ -1,6 +1,6 @@
 [package]
-name = "password-manager"
-version = "0.1.0"
+name = "weep"
+version = "0.2.0"
 edition = "2021"
 description="A commandline password manager"
 authors=["Juan Milkah <juanmilkah@gmail.com>"]
@@ -16,3 +16,8 @@ rand = "0.8.5"
 rpassword = "7.3.1"
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"
+
+[profile.release]
+opt-level = 3 
+strip = true # remove debug symbols
+lto = true #link time optimization
