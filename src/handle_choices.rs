@@ -11,8 +11,8 @@ use crate::passwords::{Password, Passwords};
 use crate::{validate_master_key, write_to_file};
 
 pub fn add_password(master_key: &MasterKey, mut database: Passwords) -> io::Result<Passwords> {
-    let service_name = prompt("Service Name: ");
-    let service_password = prompt("Service_password: ");
+    let service_name = prompt("Service Name -> ");
+    let service_password = prompt("Service_password -> ");
     let new_password = Password::new(&service_name, &service_password);
 
     database.add(new_password.clone());
@@ -21,14 +21,13 @@ pub fn add_password(master_key: &MasterKey, mut database: Passwords) -> io::Resu
         .expect("Failed to encrypt database");
 
     println!("Password Saved!");
-    println!("{:?}", new_password);
     Ok(database)
 }
 
 pub fn retrieve_password(database: &Passwords) -> Result<()> {
     let service_name = prompt("Enter service name: ");
     match database.search(&service_name) {
-        Some(service) => println!("{:?}", service),
+        Some(service) => println!("Password -> {:?}", service.password),
         None => println!("Service not found"),
     }
     Ok(())
@@ -37,14 +36,14 @@ pub fn retrieve_password(database: &Passwords) -> Result<()> {
 pub fn update_password(master_key: &MasterKey, mut database: Passwords) -> Result<Passwords> {
     let service_name = prompt("Enter Service Name: ");
     match database.search(&service_name) {
-        Some(val) => println!("{:?}", val),
+        Some(val) => println!("Current Password -> {:?}", val.password),
         None => {
             println!("Service not found!");
             return Ok(database);
         }
     }
 
-    let new_password = prompt("Enter a new password: ");
+    let new_password = prompt("Enter a new password -> ");
     let new_password = Password {
         service: service_name,
         password: new_password,
@@ -57,7 +56,6 @@ pub fn update_password(master_key: &MasterKey, mut database: Passwords) -> Resul
         .expect("Failed to encrypt database");
 
     println!("Password Updated!");
-    println!("{:?}", new_password);
 
     Ok(database)
 }
@@ -66,10 +64,7 @@ pub fn list_passwords(database: &Passwords) -> io::Result<()> {
     match database.list() {
         Some(list) => {
             for pass in list {
-                println!(
-                    "Service: {:?}\tPassword: {:?}",
-                    pass.1.service, pass.1.password
-                );
+                println!("Service -> {:?}", pass.1.service);
             }
         }
         None => {
@@ -85,7 +80,7 @@ pub fn change_master_key(master_key: MasterKey, database: Passwords) -> Result<M
     let mut count = 2;
 
     while count != 0 && !validated {
-        let old_key = prompt_password("Enter current Master key: ").unwrap();
+        let old_key = prompt_password("Enter current Master key -> ").unwrap();
         let mut cloned_master_key = master_key.clone();
         cloned_master_key.key = old_key;
         if validate_master_key(cloned_master_key).unwrap() {
@@ -100,8 +95,8 @@ pub fn change_master_key(master_key: MasterKey, database: Passwords) -> Result<M
         return Ok(master_key);
     }
 
-    let new_key = prompt_password("Enter new Master Key: ").unwrap();
-    let second_key = prompt_password("Re-Enter the New Master Key: ").unwrap();
+    let new_key = prompt_password("Enter new Master Key -> ").unwrap();
+    let second_key = prompt_password("Re-Enter the New Master Key -> ").unwrap();
     if new_key != second_key {
         eprintln!("Passwords do not match!");
         return Ok(master_key);
@@ -123,8 +118,8 @@ pub fn change_master_key(master_key: MasterKey, database: Passwords) -> Result<M
 }
 
 pub fn delete_password(master_key: &MasterKey, mut database: Passwords) -> Result<Passwords> {
-    let service_name = prompt("Enter service name to Delete: ");
-    let confirm = prompt("Are you sure(yes/no): ");
+    let service_name = prompt("Enter service name to Delete -> ");
+    let confirm = prompt("Are you sure(yes/no) -> ");
 
     match confirm.to_lowercase().as_str() {
         "y" | "yes" => match database.search(&service_name) {
