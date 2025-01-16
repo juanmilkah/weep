@@ -1,16 +1,29 @@
 # Weep
 
-# Installation
+A commandline password manager 
 
-Pre-Compiled executables on the [dist](dist) folder
+## Features 
+- Add a Password
+- Retrieve a Password 
+- Update a Password 
+- Delete a Password 
+- Change Master Key
+- List Passwords
+
+# Installation
 
 ## Compiling from source
 - Clone repository
 - Install [Rust](https://www.rust-lang.org/)
-- Build using cargo
+- Install Cross 
 
 ```bash
-cargo build --release
+cargo install cross
+```
+
+- Build the project
+```bash
+bash build.sh
 ```
 
 ## Licensing

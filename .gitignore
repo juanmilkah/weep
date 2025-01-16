@@ -1,4 +1,6 @@
 /target
+/dist
+
 .env
 passwords
 key
