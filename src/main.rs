@@ -19,8 +19,8 @@ use crate::handle_choices::{add_password, list_passwords, retrieve_password, upd
 
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{self, Read, Write};
-use std::{fs, process};
+use std::io::{self, BufReader, BufWriter, Read, Write};
+use std::process;
 
 fn main() {
     draw_ascii();
@@ -28,17 +28,15 @@ fn main() {
 
     let passwords_filepath = home_dir()
         .unwrap()
-        .join("weep/passwords")
+        .join("weeprc/passwords")
         .to_string_lossy()
         .to_string();
 
     let key_filepath = home_dir()
         .unwrap()
-        .join("weep/key")
+        .join("weeprc/key")
         .to_string_lossy()
         .to_string();
-    file_exists(&key_filepath);
-    file_exists(&passwords_filepath);
 
     let mut master_key: MasterKey = MasterKey::default();
     if !key_exists(&key_filepath) {
@@ -165,7 +163,8 @@ fn validate_master_key(master_key: MasterKey) -> io::Result<bool> {
 }
 
 pub fn read_from_file(filepath: &str) -> io::Result<String> {
-    let mut file = fs::OpenOptions::new().read(true).open(filepath)?;
+    let mut file =
+        BufReader::new(File::open(filepath).expect("Failed to open file in read-only mode"));
     let mut content = String::new();
     file.read_to_string(&mut content)?;
 
@@ -173,19 +172,12 @@ pub fn read_from_file(filepath: &str) -> io::Result<String> {
 }
 
 pub fn write_to_file(filepath: &str, content: String) -> io::Result<()> {
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(filepath)?;
-    file.write_all(content.as_bytes())?;
+    let mut file =
+        BufWriter::new(File::create(filepath).expect("Failed to open file in write-only mode"));
+    let _ = file.write_all(content.as_bytes()).map_err(|err| {
+        eprintln!("Failed to write bytes to file: {err}");
+    });
     Ok(())
-}
-
-fn file_exists(filepath: &str) {
-    if File::open(filepath).is_err() {
-        File::create(filepath).expect("Failed to create key file");
-    }
 }
 
 fn key_exists(filepath: &str) -> bool {
@@ -205,7 +197,7 @@ fn create_new_master_key(key_filepath: &str) -> io::Result<MasterKey> {
     let master_key = MasterKey::new(&new_key, key_filepath.to_string());
     let hashed_key = hash_password(&new_key).unwrap();
 
-    write_to_file(key_filepath, hashed_key).unwrap();
+    write_to_file(key_filepath, hashed_key.to_string()).expect("Failed to write into key file");
     println!("New Master Key successfully Created!");
     Ok(master_key)
 }

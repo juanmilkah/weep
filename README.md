@@ -1,6 +1,6 @@
 # Weep
 
-A commandline password manager 
+A commandline password manager for Unix-based platforms
 
 ## Features 
 - Add a Password
@@ -16,10 +16,6 @@ A commandline password manager
 - Clone repository
 - Install [Rust](https://www.rust-lang.org/)
 - Install Cross 
-
-```bash
-cargo install cross
-```
 
 - Build the project
 ```bash

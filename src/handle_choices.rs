@@ -63,8 +63,11 @@ pub fn update_password(master_key: &MasterKey, mut database: Passwords) -> Resul
 pub fn list_passwords(database: &Passwords) -> io::Result<()> {
     match database.list() {
         Some(list) => {
+            println!("Services:");
+            let mut index = 1;
             for pass in list {
-                println!("Service -> {:?}", pass.1.service);
+                println!("{index}: {:?}", pass.1.service);
+                index += 1;
             }
         }
         None => {
