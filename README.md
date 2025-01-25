@@ -1,6 +1,6 @@
 # Weep
 
-A commandline password manager for Unix-based platforms
+A commandline password manager.  
 The program's default directory is at `$HOME/.weeprc`
 
 ## Features 
@@ -13,10 +13,9 @@ The program's default directory is at `$HOME/.weeprc`
 
 # Installation
 
-## Compiling from source
+## Compiling from source(Unix-based)
 - Clone repository
 - Install [Rust](https://www.rust-lang.org/)
-- Install Cross 
 
 - Build the project
 ```bash
