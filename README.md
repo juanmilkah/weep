@@ -1,6 +1,7 @@
 # Weep
 
 A commandline password manager for Unix-based platforms
+The program's default directory is at `$HOME/.weeprc`
 
 ## Features 
 - Add a Password
