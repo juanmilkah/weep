@@ -3,8 +3,8 @@
 echo "Building the program...."
 cargo build --release 
 
-sudo cp target/release/weep /usr/bin/
-echo "Executable copied to bin directory."
+sudo cp target/release/weep /usr/local/bin/
+echo "Executable saved."
 
 WEEPRC_DIR=$HOME/.weeprc 
 mkdir $WEEPRC_DIR
