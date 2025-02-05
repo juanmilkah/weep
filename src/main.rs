@@ -17,7 +17,6 @@ use self::master_keys::MasterKey;
 use self::passwords::Passwords;
 use crate::handle_choices::{add_password, list_passwords, retrieve_password, update_password};
 
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::process;
@@ -49,25 +48,11 @@ fn main() -> io::Result<()> {
 }
 
 fn run(mut database: Passwords, mut master_key: MasterKey) -> io::Result<()> {
-    let options = BTreeMap::from([
-        ("a", "Add a new password"),
-        ("r", "Retrieve a password"),
-        ("l", "List all services"),
-        ("u", "Update Service Password"),
-        ("d", "Delete Sevice Password"),
-        ("c", "Change Master Key"),
-        ("q", "Exit"),
-    ]);
-
+    help_usage();
     loop {
-        println!("Choose an option: ");
-        for (key, value) in &options {
-            println!("{key}\t{value}");
-        }
+        let subcommand = prompt("==> ".to_string())?;
 
-        let choice = prompt("Your Choice:".to_string())?;
-
-        match choice.to_lowercase().chars().next().ok_or_else(|| {
+        match subcommand.to_lowercase().chars().next().ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Failed to get first input char",
@@ -107,12 +92,26 @@ fn run(mut database: Passwords, mut master_key: MasterKey) -> io::Result<()> {
                 Err(e) => eprintln!("Failed to change master key! {:?}", e),
             },
             'q' => handle_exit(master_key.clone(), database.clone()),
+            'h' => help_usage(),
             _ => {
-                println!("Invalid Choice!");
+                println!("Invalid SubCommand!");
                 continue;
             }
         }
     }
+}
+
+fn help_usage() {
+    println!("[Weep] [SubCommands]");
+
+    println!("\ta[dd]        Add a new password");
+    println!("\tr[etrieve]   Retrieve a password");
+    println!("\tl[ist]       List all services");
+    println!("\tu[update]    Update Service Password");
+    println!("\td[elete]     Delete Sevice Password");
+    println!("\tc[change]    Change Master Key");
+    println!("\tq[uit]       Exit");
+    println!("\th[elp]       Show help and usage");
 }
 
 fn validate_master_key_loop(key_filepath: String) -> io::Result<MasterKey> {
@@ -159,7 +158,7 @@ fn handle_exit(master_key: MasterKey, database: Passwords) {
 }
 
 fn prompt(message: String) -> io::Result<String> {
-    println!("{message}");
+    print!("{message}");
     io::stdout().flush().map_err(|err| {
         io::Error::new(
             io::ErrorKind::Other,
