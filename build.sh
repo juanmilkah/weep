@@ -7,7 +7,7 @@ sudo cp target/release/weep /usr/local/bin/
 echo "Executable saved."
 
 WEEPRC_DIR=$HOME/.weeprc 
-mkdir $WEEPRC_DIR
+mkdir -p $WEEPRC_DIR
 echo "Created weeprc directory"
 
 touch "$WEEPRC_DIR/passwords"
