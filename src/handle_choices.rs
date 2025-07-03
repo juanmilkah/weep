@@ -16,7 +16,7 @@ pub fn add_password(master_key: &MasterKey, mut database: Passwords) -> io::Resu
     let new_password = Password::new(&service_name, &service_password);
 
     database.add(new_password.clone());
-    let serialized_bytes = bincode::serialize(&database.passwords).map_err(|err| {
+    let serialized_bytes = bincode2::serialize(&database.passwords).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             format!("Failed to serialize database passwords: {err}"),
@@ -56,7 +56,7 @@ pub fn update_password(master_key: &MasterKey, mut database: Passwords) -> Resul
 
     database.add(new_password.clone());
 
-    let serialized_bytes = bincode::serialize(&database.passwords).map_err(|err| {
+    let serialized_bytes = bincode2::serialize(&database.passwords).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             format!("Failed to serialize database passwords: {err}"),
@@ -102,7 +102,7 @@ pub fn change_master_key(master_key: MasterKey, database: Passwords) -> Result<M
             break;
         }
         count -= 1;
-        eprintln!("Wrong Master key! {} atempts remaining!", count);
+        eprintln!("Wrong Master key! {count} atempts remaining!");
     }
     if !validated {
         eprintln!("Too many incorrect attempts!");
@@ -119,7 +119,7 @@ pub fn change_master_key(master_key: MasterKey, database: Passwords) -> Result<M
 
     write_to_file(&master_key.filepath, hashed_key)?;
 
-    let serialized_bytes = bincode::serialize(&database.passwords).map_err(|err| {
+    let serialized_bytes = bincode2::serialize(&database.passwords).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             format!("Failed to serialize passwords: {err}"),
@@ -145,7 +145,7 @@ pub fn delete_password(master_key: &MasterKey, mut database: Passwords) -> Resul
             Some(_) => {
                 database.delete(&service_name);
 
-                let serialized_bytes = bincode::serialize(&database.passwords).map_err(|err| {
+                let serialized_bytes = bincode2::serialize(&database.passwords).map_err(|err| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
                         format!("Failed to serialize passwords: {err}"),
@@ -174,8 +174,7 @@ pub fn delete_password(master_key: &MasterKey, mut database: Passwords) -> Resul
 fn prompt(message: &str) -> io::Result<String> {
     print!("{message}");
     io::stdout().flush().map_err(|err| {
-        io::Error::new(
-            io::ErrorKind::Other,
+        io::Error::other(
             format!("Failed to flush stdout:{err}"),
         )
     })?;

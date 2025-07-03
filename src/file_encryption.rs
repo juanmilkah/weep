@@ -86,7 +86,7 @@ pub fn decrypt_file(password: &str, input_file: &str) -> std::io::Result<Databas
         )
         .expect("Decryption failed");
 
-    let database: Database = bincode::deserialize(&plaintext).map_err(|err| {
+    let database: Database = bincode2::deserialize(&plaintext).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             format!("Failed do deserialize plaintext to database: {err}"),

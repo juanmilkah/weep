@@ -17,21 +17,29 @@ use self::master_keys::MasterKey;
 use self::passwords::Passwords;
 use crate::handle_choices::{add_password, list_passwords, retrieve_password, update_password};
 
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, BufReader, BufWriter, Read, Write};
+use std::path::{Path, PathBuf};
 use std::process;
+
+const DEFAULT_DIRECTORY: &str = ".weeprc";
 
 fn main() -> io::Result<()> {
     draw_ascii();
     let mut validated = false;
 
     let (key_filepath, passwords_filepath) = get_file_paths()?;
+    // temporal fix
 
     let mut master_key: MasterKey = MasterKey::default();
     if !key_exists(&key_filepath)? {
-        master_key = create_new_master_key(&key_filepath)?;
+        master_key = create_new_master_key(key_filepath.to_string_lossy().as_ref())?;
         validated = true;
     }
+    let (key_filepath, passwords_filepath) = (
+        key_filepath.to_string_lossy().to_string(),
+        passwords_filepath.to_string_lossy().to_string(),
+    );
 
     if !validated {
         master_key = validate_master_key_loop(key_filepath)?;
@@ -63,35 +71,35 @@ fn run(mut database: Passwords, mut master_key: MasterKey) -> io::Result<()> {
                     database = db;
                     continue;
                 }
-                Err(e) => eprintln!("Failed to add password! {:?}", e),
+                Err(e) => eprintln!("Failed to add password! {e:?}"),
             },
             'r' => match retrieve_password(&database) {
                 Ok(_) => continue,
-                Err(e) => eprintln!("Failed to retrive password! {:?}", e),
+                Err(e) => eprintln!("Failed to retrive password! {e:?}"),
             },
             'l' => match list_passwords(&database) {
                 Ok(_) => continue,
-                Err(e) => eprintln!("Failed to list passwords! {:?}", e),
+                Err(e) => eprintln!("Failed to list passwords! {e:?}"),
             },
             'u' => match update_password(&master_key, database.clone()) {
                 Ok(db) => {
                     database = db;
                     continue;
                 }
-                Err(e) => eprintln!("Failed to update password! {:?}", e),
+                Err(e) => eprintln!("Failed to update password! {e:?}"),
             },
             'd' => match delete_password(&master_key, database.clone()) {
                 Ok(db) => {
                     database = db;
                     continue;
                 }
-                Err(e) => eprintln!("Failed to delete passwords! {:?}", e),
+                Err(e) => eprintln!("Failed to delete passwords! {e:?}"),
             },
             'c' => match change_master_key(master_key.clone(), database.clone()) {
                 Ok(new_master_key) => master_key = new_master_key,
-                Err(e) => eprintln!("Failed to change master key! {:?}", e),
+                Err(e) => eprintln!("Failed to change master key! {e:?}"),
             },
-            'q' => handle_exit(master_key.clone(), database.clone()),
+            'q' | 'e' => handle_exit(master_key.clone(), database.clone()),
             'h' => help_usage(),
             _ => {
                 println!("Invalid SubCommand!");
@@ -119,7 +127,7 @@ fn validate_master_key_loop(key_filepath: String) -> io::Result<MasterKey> {
         let key = prompt_password("Enter master Key: ").map_err(|err| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("Failed toread key file: {}", err),
+                format!("Failed toread key file: {err}"),
             )
         })?;
 
@@ -136,11 +144,11 @@ fn handle_exit(master_key: MasterKey, database: Passwords) {
     println!("Wait a minute...");
     //convert the database to bytes
 
-    let serialized_bytes = bincode::serialize(&database.passwords)
+    let serialized_bytes = bincode2::serialize(&database.passwords)
         .map_err(|err| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Failed to serialise passwords: {}", err),
+                format!("Failed to serialise passwords: {err}"),
             )
         })
         .unwrap_or_else(|e| {
@@ -159,18 +167,15 @@ fn handle_exit(master_key: MasterKey, database: Passwords) {
 
 fn prompt(message: String) -> io::Result<String> {
     print!("{message}");
-    io::stdout().flush().map_err(|err| {
-        io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to flush stdout: {}", err),
-        )
-    })?;
+    io::stdout()
+        .flush()
+        .map_err(|err| io::Error::other(format!("Failed to flush stdout: {err}")))?;
 
     let mut input = String::new();
     io::stdin().read_line(&mut input).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("Failed to read input: {}", err),
+            format!("Failed to read input: {err}"),
         )
     })?;
 
@@ -178,12 +183,13 @@ fn prompt(message: String) -> io::Result<String> {
 }
 
 fn validate_master_key(master_key: MasterKey) -> io::Result<bool> {
-    let content = read_from_file(&master_key.filepath)?;
+    let file = Path::new(&master_key.filepath);
+    let content = read_from_file(file)?;
     if content.is_empty() {
         let pass_hash = hash(&master_key.key, DEFAULT_COST).map_err(|err| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Failed to hash key: {}", err),
+                format!("Failed to hash key: {err}"),
             )
         })?;
 
@@ -194,16 +200,16 @@ fn validate_master_key(master_key: MasterKey) -> io::Result<bool> {
     let is_valid = verify(&master_key.key, &content).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("Failed to verify master key: {}", err),
+            format!("Failed to verify master key: {err}"),
         )
     })?;
 
     Ok(is_valid)
 }
 
-pub fn read_from_file(filepath: &str) -> io::Result<String> {
-    let mut file =
-        BufReader::new(File::open(filepath).expect("Failed to open file in read-only mode"));
+pub fn read_from_file(filepath: &Path) -> io::Result<String> {
+    let file = File::options().read(true).open(filepath)?;
+    let mut file = BufReader::new(file);
     let mut content = String::new();
     file.read_to_string(&mut content)?;
 
@@ -219,11 +225,11 @@ pub fn write_to_file(filepath: &str, content: String) -> io::Result<()> {
     Ok(())
 }
 
-fn key_exists(filepath: &str) -> io::Result<bool> {
+fn key_exists(filepath: &Path) -> io::Result<bool> {
     let content = read_from_file(filepath).map_err(|err| {
         io::Error::new(
             io::ErrorKind::NotFound,
-            format!("Failed to read key file: {}", err),
+            format!("Failed to read key file: {err}"),
         )
     })?;
 
@@ -235,14 +241,14 @@ fn create_new_master_key(key_filepath: &str) -> io::Result<MasterKey> {
     let new_key = prompt_password("Enter new Master Key: ").map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("Failed to read master key: {}", err),
+            format!("Failed to read master key: {err}"),
         )
     })?;
 
     let rep_key = prompt_password("Re-Enter the Master Key: ").map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("Failed to read master key: {}", err),
+            format!("Failed to read master key: {err}"),
         )
     })?;
 
@@ -255,7 +261,7 @@ fn create_new_master_key(key_filepath: &str) -> io::Result<MasterKey> {
     let hashed_key = hash_password(&new_key).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("Failed to hash master key: {}", err),
+            format!("Failed to hash master key: {err}"),
         )
     })?;
 
@@ -264,19 +270,25 @@ fn create_new_master_key(key_filepath: &str) -> io::Result<MasterKey> {
     Ok(master_key)
 }
 
-fn get_file_paths() -> io::Result<(String, String)> {
+fn get_file_paths() -> io::Result<(PathBuf, PathBuf)> {
     let home = home_dir()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Home Directory not Found"))?;
+    let default_dir = home.join(DEFAULT_DIRECTORY);
+    if !default_dir.exists() {
+        fs::create_dir(&default_dir)?;
+    }
 
-    let get_path = |filename: &str| -> String {
-        home.join(".weeprc")
-            .join(filename)
-            .to_string_lossy()
-            .into_owned()
-    };
+    let get_path = |filename: &str| -> PathBuf { default_dir.join(filename) };
 
     let key_filepath = get_path("key");
     let passwords_filepath = get_path("passwords");
 
+    if !key_filepath.exists() {
+        let _ = File::create(&key_filepath)?;
+    }
+
+    if !passwords_filepath.exists() {
+        let _ = File::create(&passwords_filepath)?;
+    }
     Ok((key_filepath, passwords_filepath))
 }

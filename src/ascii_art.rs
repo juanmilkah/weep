@@ -13,5 +13,5 @@ pub fn draw_ascii() {
  ▀███▀███▀    ██████████   ██████████  ▄████▀      
 ";
 
-    println!("{}", art);
+    println!("{art}");
 }
