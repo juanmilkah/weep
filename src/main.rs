@@ -12,6 +12,7 @@ use std::fs::{self, File};
 use std::io::{stdin, stdout, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 const DEFAULT_DIRECTORY: &str = ".weeprc";
 const USAGE: &str = r#"
@@ -23,10 +24,10 @@ const USAGE: &str = r#"
     u[update]    Update Service Password
     d[elete]     Delete Sevice Password
     c[change]    Change Master Key
+    s[ave]       Flush the changes to disk
     q[uit]       Exit
     h[elp]       Show help and usage"#;
 
-#[inline(always)]
 fn draw_ascii() {
     let art = "                                                                                               
  ▄█     █▄     ▄████████    ▄████████    ▄███████▄ 
@@ -87,8 +88,7 @@ fn change_key_passphrase(master_key: &mut MasterKey) -> Result<Option<String>, S
     Ok(Some(new_key))
 }
 
-#[inline]
-fn delete_password(database: &mut Passwords) -> Result<(), String> {
+fn delete_password(database: &mut Database) -> Result<(), String> {
     let service_name = prompt("Enter service name to Delete -> ")?;
     let confirm = prompt("Are you sure(yes/no) -> ")?;
 
@@ -109,11 +109,10 @@ fn delete_password(database: &mut Passwords) -> Result<(), String> {
     Ok(())
 }
 
-#[inline]
-fn update_password(database: &mut Passwords) -> Result<(), String> {
+fn update_password(database: &mut Database) -> Result<(), String> {
     let service_name = prompt("Enter Service Name: ")?;
     match database.search(&service_name) {
-        Some(val) => println!("Current Password -> {:?}", val.password),
+        Some(val) => println!("Current Password -> {:?}", val.password.0),
         None => {
             println!("Service not found!");
             return Ok(());
@@ -130,8 +129,7 @@ fn update_password(database: &mut Passwords) -> Result<(), String> {
     Ok(())
 }
 
-#[inline]
-fn list_passwords(database: &Passwords) {
+fn list_passwords(database: &Database) {
     match database.list_keys() {
         Some(list) => {
             println!("Services:");
@@ -145,19 +143,17 @@ fn list_passwords(database: &Passwords) {
     }
 }
 
-#[inline]
-fn retrieve_password(database: &Passwords) {
+fn retrieve_password(database: &Database) {
     let service_name = prompt("Enter service name: ").unwrap_or_default();
     if !service_name.is_empty() {
         match database.search(&service_name) {
-            Some(service) => println!("Password -> {:?}", service.password),
+            Some(service) => println!("Password -> {:?}", service.password.0),
             None => println!("Service not found"),
         }
     }
 }
 
-#[inline]
-fn add_password(database: &mut Passwords) -> Result<(), String> {
+fn add_password(database: &mut Database) -> Result<(), String> {
     let service_name = prompt("Service Name -> ")?;
     let service_password = prompt("Service_password -> ")?;
 
@@ -184,14 +180,14 @@ fn prompt(message: &str) -> Result<String, String> {
 #[derive(Debug, Serialize, Deserialize)]
 struct Password {
     service: String,
-    password: String,
+    password: SecureString,
 }
 
 impl Password {
     fn new(service: String, raw_password: String) -> Self {
         Password {
             service,
-            password: raw_password,
+            password: SecureString(raw_password),
         }
     }
 }
@@ -199,23 +195,24 @@ impl Password {
 type Collection = HashMap<String, Password>;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Passwords {
+struct Database {
     collection: Collection,
+    dirty: bool, // for flushing to disk
 }
 
-impl Passwords {
+impl Database {
     fn new() -> Self {
-        Passwords {
+        Database {
             collection: HashMap::new(),
+            dirty: false,
         }
     }
 
-    #[inline(always)]
     fn add(&mut self, password: Password) {
         self.collection.insert(password.service.clone(), password);
+        self.dirty = true;
     }
 
-    #[inline(always)]
     fn list_keys(&self) -> Option<Vec<String>> {
         if self.collection.is_empty() {
             None
@@ -224,14 +221,13 @@ impl Passwords {
         }
     }
 
-    #[inline(always)]
     fn search(&self, service_name: &str) -> Option<&Password> {
         self.collection.get(service_name)
     }
 
-    #[inline(always)]
     fn delete(&mut self, service_name: &str) {
         self.collection.remove(service_name);
+        self.dirty = true;
     }
 }
 
@@ -263,7 +259,6 @@ fn read_from_file(filepath: &Path) -> Result<Vec<u8>, String> {
     Ok(buf)
 }
 
-#[inline(always)]
 fn hash_password(password: &str) -> Result<String, String> {
     let hashed_pass =
         hash(password, DEFAULT_COST).map_err(|err| format!("Error: hash password: {err}"))?;
@@ -295,7 +290,6 @@ fn decrypt_content(password: &str, content: Vec<u8>) -> Result<Vec<u8>, String> 
     Ok(plaintext)
 }
 
-#[inline(always)]
 fn derive_key(password: &str, salt: &[u8]) -> Result<[u8; 32], String> {
     let mut output_key_material = [0u8; 32];
     Argon2::default()
@@ -335,7 +329,6 @@ fn encrypt_content(password: &str, content: &[u8]) -> Result<Vec<u8>, String> {
     Ok(data)
 }
 
-#[inline(always)]
 fn write_to_file(filepath: &Path, content: &[u8]) -> Result<(), String> {
     let mut file = File::options()
         .create(true)
@@ -348,7 +341,6 @@ fn write_to_file(filepath: &Path, content: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-#[inline(always)]
 fn generate_new_key() -> String {
     let mut rng = rand::thread_rng();
 
@@ -387,19 +379,22 @@ fn create_new_master_key(key_filepath: &Path) -> Result<String, String> {
 }
 
 fn validate_passphrase(key_filepath: &Path) -> Result<String, String> {
-    let content = read_from_file(key_filepath).unwrap();
+    let content = read_from_file(key_filepath)?;
     if content.is_empty() {
-        let master_key = create_new_master_key(key_filepath).unwrap();
+        let master_key = create_new_master_key(key_filepath)?;
         return Ok(master_key);
     }
 
-    let master: MasterKey = bincode2::deserialize(&content).unwrap();
+    let master: MasterKey = bincode2::deserialize(&content)
+        .map_err(|err| format!("Error: deserialize master: {err}"))?;
 
     loop {
         let key = prompt_password("Enter passphrase: ")
             .map_err(|err| format!("Failed to read passphrase: {err}"))?;
 
-        if verify(key.clone(), &master.passphrase_hash).unwrap() {
+        if verify(key.clone(), &master.passphrase_hash)
+            .map_err(|err| format!("Error: Verify passphrase: {err}"))?
+        {
             let decrypted_key = decrypt_content(&key, master.encrypted_key)?;
             return Ok(String::from_utf8(decrypted_key).unwrap());
         }
@@ -422,11 +417,13 @@ fn get_file_paths() -> Result<(PathBuf, PathBuf), String> {
     let passwords_filepath = get_path("passwords");
 
     if !key_filepath.exists() {
-        let _ = File::create(&key_filepath).unwrap();
+        let _ =
+            File::create(&key_filepath).map_err(|err| format!("Error: Create key file: {err}"))?;
     }
 
     if !passwords_filepath.exists() {
-        let _ = File::create(&passwords_filepath).unwrap();
+        let _ = File::create(&passwords_filepath)
+            .map_err(|err| format!("Error: Create database file: {err}"))?;
     }
     Ok((key_filepath, passwords_filepath))
 }
@@ -434,10 +431,12 @@ fn get_file_paths() -> Result<(PathBuf, PathBuf), String> {
 struct Config {
     key_filepath: PathBuf,
     passwords_filepath: PathBuf,
-    decrypted_key: String,
+    decrypted_key: SecureString,
 }
 
-#[inline(always)]
+#[derive(Debug, Zeroize, ZeroizeOnDrop, Serialize, Deserialize)]
+struct SecureString(String);
+
 fn init() -> Result<Config, String> {
     let (key_filepath, passwords_filepath) = get_file_paths()?;
 
@@ -446,25 +445,38 @@ fn init() -> Result<Config, String> {
     Ok(Config {
         key_filepath,
         passwords_filepath,
-        decrypted_key,
+        decrypted_key: SecureString(decrypted_key),
     })
 }
 
 fn run(cfg: &mut Config) -> Result<(), String> {
     println!("{USAGE}");
 
-    let mut database: Passwords = {
+    let mut database: Database = {
         let encrypted_database = read_from_file(&cfg.passwords_filepath)?;
         if encrypted_database.is_empty() {
-            Passwords::new()
+            Database::new()
         } else {
-            let decrypted_database = decrypt_content(&cfg.decrypted_key, encrypted_database)?;
+            let decrypted_database = decrypt_content(&cfg.decrypted_key.0, encrypted_database)?;
             bincode2::deserialize(&decrypted_database)
                 .map_err(|err| format!("Error: deserialize database: {err}"))?
         }
     };
 
-    let mut should_flush = false;
+    let flush_to_disk = |database: &mut Database, cfg: &mut Config| -> Result<(), String> {
+        let serialized_database = bincode2::serialize(&database)
+            .map_err(|err| format!("Error: Serialize database: {err}"))?;
+        let encrypted_database = encrypt_content(&cfg.decrypted_key.0, &serialized_database)?;
+        let mut file = File::options()
+            .write(true)
+            .truncate(true)
+            .open(&cfg.passwords_filepath)
+            .map_err(|err| format!("Error: Open database file for write: {err}"))?;
+        file.write_all(&encrypted_database)
+            .map_err(|err| format!("Error: Write database to file: {err}"))?;
+        database.dirty = false;
+        Ok(())
+    };
 
     loop {
         let subcommand = prompt("==> ")?;
@@ -479,7 +491,6 @@ fn run(cfg: &mut Config) -> Result<(), String> {
                     eprintln!("{e}");
                     continue;
                 }
-                should_flush = true;
             }
 
             'g' => retrieve_password(&database),
@@ -491,14 +502,12 @@ fn run(cfg: &mut Config) -> Result<(), String> {
                     eprintln!("Failed to update password! {e:?}");
                     continue;
                 }
-                should_flush = true;
             }
             'd' => {
                 if let Err(e) = delete_password(&mut database) {
                     eprintln!("Failed to delete passwords! {e:?}");
                     continue;
                 }
-                should_flush = true;
             }
             'c' => {
                 let mut file = File::options()
@@ -510,7 +519,7 @@ fn run(cfg: &mut Config) -> Result<(), String> {
 
                 match change_key_passphrase(&mut master) {
                     Ok(Some(new_key)) => {
-                        cfg.decrypted_key = new_key;
+                        cfg.decrypted_key.0 = new_key;
                     }
                     Ok(None) => continue,
                     Err(err) => {
@@ -527,27 +536,18 @@ fn run(cfg: &mut Config) -> Result<(), String> {
 
                 bincode2::serialize_into(&mut file, &master)
                     .map_err(|err| format!("Error: Serialize into key filepath: {err}"))?;
-                should_flush = true;
             }
 
             'q' | 'e' => break,
+            's' => flush_to_disk(&mut database, cfg)?,
             'h' => println!("{USAGE}"),
 
             _ => eprintln!("Invalid SubCommand!"),
         }
+    }
 
-        if should_flush {
-            let serialized_database = bincode2::serialize(&database)
-                .map_err(|err| format!("Error: Serialize database: {err}"))?;
-            let encrypted_database = encrypt_content(&cfg.decrypted_key, &serialized_database)?;
-            let mut file = File::options()
-                .write(true)
-                .truncate(true)
-                .open(&cfg.passwords_filepath)
-                .map_err(|err| format!("Error: Open database file for write: {err}"))?;
-            file.write_all(&encrypted_database)
-                .map_err(|err| format!("Error: Write database to file: {err}"))?;
-        }
+    if database.dirty {
+        flush_to_disk(&mut database, cfg)?;
     }
 
     Ok(())

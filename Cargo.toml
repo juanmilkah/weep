@@ -15,6 +15,7 @@ home = "0.5.11"
 rand = "0.8.5"
 rpassword = "7.3.1"
 serde = { version = "1.0.215", features = ["derive"] }
+zeroize = { version = "1.8.1", features = ["zeroize_derive"] }
 
 [profile.release]
 opt-level = 3 
