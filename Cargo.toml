@@ -1,13 +1,12 @@
 [package]
 name = "weep"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description="A commandline password manager"
 authors=["Juan Milkah <juanmilkah@gmail.com>"]
 license="GNU GPL3"
 
 [dependencies]
-anyhow = "1.0.96"
 argon2 = "0.5.3"
 bcrypt = "0.16.0"
 bincode2 = "2.0.1"
@@ -19,5 +18,5 @@ serde = { version = "1.0.215", features = ["derive"] }
 
 [profile.release]
 opt-level = 3 
-strip = true # remove debug symbols
-lto = true #link time optimization
+strip = true 
+lto = "fat"
