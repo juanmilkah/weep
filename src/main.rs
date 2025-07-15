@@ -1,23 +1,27 @@
 use argon2::{self, Argon2};
 use bcrypt::{hash, verify, DEFAULT_COST};
-use chacha20poly1305::aead::{Aead, KeyInit, Payload};
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
-use rand::distributions::Alphanumeric;
-use rand::prelude::Distribution;
-use rand::Rng;
+use chacha20poly1305::{
+    aead::{Aead, KeyInit, Payload},
+    ChaCha20Poly1305, Key, Nonce,
+};
+use rand::{distributions::Alphanumeric, prelude::Distribution, Rng, RngCore};
 use rpassword::prompt_password;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::{stdin, stdout, BufReader, Read, Write};
-use std::path::{Path, PathBuf};
-use std::process;
 use zeroize::{Zeroize, ZeroizeOnDrop};
+
+use std::{
+    collections::HashMap,
+    fs::{self, File},
+    io::{stdin, stdout, BufReader, Read, Write},
+    path::{Path, PathBuf},
+    process,
+};
 
 const DEFAULT_DIRECTORY: &str = ".weeprc";
 const USAGE: &str = r#"
-    [Weep] [SubCommands]
-
+    [Weep] 
+    Use quotes(") if you explicitly want them included.
+    [SubCommands]
     a[dd]        Add a new password
     g[et]        Get a password
     l[ist]       List all services
@@ -43,7 +47,7 @@ fn draw_ascii() {
     println!("{art}");
 }
 
-fn change_key_passphrase(master_key: &mut MasterKey) -> Result<Option<String>, String> {
+fn change_key_passphrase(master_key: &mut MasterKey) -> Result<Option<SecureString>, String> {
     let mut count = 3;
     let mut validated = false;
 
@@ -78,7 +82,7 @@ fn change_key_passphrase(master_key: &mut MasterKey) -> Result<Option<String>, S
     }
     let hashed_key = hash_password(&new_passphrase)?;
     let new_key = generate_new_key();
-    let encrypted_key = encrypt_content(&new_passphrase, new_key.as_bytes())?;
+    let encrypted_key = encrypt_content(&new_passphrase, new_key.0.as_bytes())?;
 
     master_key.passphrase_hash = hashed_key;
     master_key.encrypted_key = encrypted_key;
@@ -90,6 +94,10 @@ fn change_key_passphrase(master_key: &mut MasterKey) -> Result<Option<String>, S
 
 fn delete_password(database: &mut Database) -> Result<(), String> {
     let service_name = prompt("Enter service name to Delete -> ")?;
+    if service_name.is_empty() {
+        eprintln!("Field can't be empty!");
+        return Ok(());
+    }
     let confirm = prompt("Are you sure(yes/no) -> ")?;
 
     match confirm.to_lowercase().as_str() {
@@ -111,6 +119,11 @@ fn delete_password(database: &mut Database) -> Result<(), String> {
 
 fn update_password(database: &mut Database) -> Result<(), String> {
     let service_name = prompt("Enter Service Name: ")?;
+
+    if service_name.is_empty() {
+        eprintln!("Field can't be empty!");
+        return Ok(());
+    }
     match database.search(&service_name) {
         Some(val) => println!("Current Password -> {:?}", val.password.0),
         None => {
@@ -120,6 +133,10 @@ fn update_password(database: &mut Database) -> Result<(), String> {
     }
 
     let service_password = prompt("Enter a new password -> ")?;
+    if service_password.is_empty() {
+        eprintln!("Field can't be empty!");
+        return Ok(());
+    }
     let new_pass = Password::new(service_name, service_password);
 
     database.add(new_pass);
@@ -150,12 +167,22 @@ fn retrieve_password(database: &Database) {
             Some(service) => println!("Password -> {:?}", service.password.0),
             None => println!("Service not found"),
         }
+    } else {
+        eprintln!("Field can't be empty!");
     }
 }
 
 fn add_password(database: &mut Database) -> Result<(), String> {
     let service_name = prompt("Service Name -> ")?;
+    if service_name.is_empty() {
+        eprintln!("Field can't be empty!");
+        return Ok(());
+    }
     let service_password = prompt("Service_password -> ")?;
+    if service_password.is_empty() {
+        eprintln!("Field can't be empty!");
+        return Ok(());
+    }
 
     let new_password = Password::new(service_name, service_password);
 
@@ -301,7 +328,7 @@ fn derive_key(password: &str, salt: &[u8]) -> Result<[u8; 32], String> {
 fn encrypt_content(password: &str, content: &[u8]) -> Result<Vec<u8>, String> {
     // Generate a random salt for key derivation
     let mut salt = [0u8; 16];
-    rand::thread_rng().fill(&mut salt);
+    rand::thread_rng().fill_bytes(&mut salt);
 
     // Derive the encryption key
     let key = derive_key(password, &salt)?;
@@ -341,7 +368,7 @@ fn write_to_file(filepath: &Path, content: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-fn generate_new_key() -> String {
+fn generate_new_key() -> SecureString {
     let mut rng = rand::thread_rng();
 
     let key: String = Alphanumeric
@@ -350,10 +377,12 @@ fn generate_new_key() -> String {
         .map(char::from)
         .collect();
 
-    key
+    SecureString(key)
 }
 
-fn create_new_master_key(key_filepath: &Path) -> Result<String, String> {
+/// Prompts user for a new passphrase with which is used to
+/// generate a new master key
+fn create_new_master_key(key_filepath: &Path) -> Result<SecureString, String> {
     println!("No Master Key exists!\nCreate a new Master Key!");
     let passphrase = prompt_password("Enter passphrase for new master key: ")
         .map_err(|err| format!("Failed to read passphrase: {err}"))?;
@@ -368,7 +397,7 @@ fn create_new_master_key(key_filepath: &Path) -> Result<String, String> {
 
     let new_key = generate_new_key();
     let passphrase_hash = hash_password(&passphrase)?;
-    let encrypted_key = encrypt_content(&passphrase, new_key.as_bytes())?;
+    let encrypted_key = encrypt_content(&passphrase, new_key.0.as_bytes())?;
     let master_key = MasterKey::new(passphrase_hash, encrypted_key);
     let serialized_key = bincode2::serialize(&master_key)
         .map_err(|err| format!("Error: Serialize master key: {err}"))?;
@@ -378,7 +407,9 @@ fn create_new_master_key(key_filepath: &Path) -> Result<String, String> {
     Ok(new_key)
 }
 
-fn validate_passphrase(key_filepath: &Path) -> Result<String, String> {
+/// Validates the user passphrase;
+/// and decrypts the master key;
+fn validate_passphrase(key_filepath: &Path) -> Result<SecureString, String> {
     let content = read_from_file(key_filepath)?;
     if content.is_empty() {
         let master_key = create_new_master_key(key_filepath)?;
@@ -396,13 +427,15 @@ fn validate_passphrase(key_filepath: &Path) -> Result<String, String> {
             .map_err(|err| format!("Error: Verify passphrase: {err}"))?
         {
             let decrypted_key = decrypt_content(&key, master.encrypted_key)?;
-            return Ok(String::from_utf8(decrypted_key).unwrap());
+            return Ok(SecureString(String::from_utf8(decrypted_key).unwrap()));
         }
 
         println!("No key found with the passphrase");
     }
 }
 
+/// Checks if the default `weeprc` directory exists
+/// Creates the `key` && `passwords` files if they do not exist
 fn get_file_paths() -> Result<(PathBuf, PathBuf), String> {
     let home = home::home_dir().unwrap();
     let default_dir = home.join(DEFAULT_DIRECTORY);
@@ -437,6 +470,8 @@ struct Config {
 #[derive(Debug, Zeroize, ZeroizeOnDrop, Serialize, Deserialize)]
 struct SecureString(String);
 
+/// initial setup; Gets the necessary filepaths and validates the
+/// users passphrase
 fn init() -> Result<Config, String> {
     let (key_filepath, passwords_filepath) = get_file_paths()?;
 
@@ -445,7 +480,7 @@ fn init() -> Result<Config, String> {
     Ok(Config {
         key_filepath,
         passwords_filepath,
-        decrypted_key: SecureString(decrypted_key),
+        decrypted_key,
     })
 }
 
@@ -486,6 +521,7 @@ fn run(cfg: &mut Config) -> Result<(), String> {
         }
 
         match subcommand.to_lowercase().chars().next().unwrap() {
+            // add new
             'a' => {
                 if let Err(e) = add_password(&mut database) {
                     eprintln!("{e}");
@@ -493,22 +529,7 @@ fn run(cfg: &mut Config) -> Result<(), String> {
                 }
             }
 
-            'g' => retrieve_password(&database),
-
-            'l' => list_passwords(&database),
-
-            'u' => {
-                if let Err(e) = update_password(&mut database) {
-                    eprintln!("Failed to update password! {e:?}");
-                    continue;
-                }
-            }
-            'd' => {
-                if let Err(e) = delete_password(&mut database) {
-                    eprintln!("Failed to delete passwords! {e:?}");
-                    continue;
-                }
-            }
+            // change master key
             'c' => {
                 let mut file = File::options()
                     .read(true)
@@ -519,7 +540,7 @@ fn run(cfg: &mut Config) -> Result<(), String> {
 
                 match change_key_passphrase(&mut master) {
                     Ok(Some(new_key)) => {
-                        cfg.decrypted_key.0 = new_key;
+                        cfg.decrypted_key = new_key;
                     }
                     Ok(None) => continue,
                     Err(err) => {
@@ -536,11 +557,34 @@ fn run(cfg: &mut Config) -> Result<(), String> {
 
                 bincode2::serialize_into(&mut file, &master)
                     .map_err(|err| format!("Error: Serialize into key filepath: {err}"))?;
+                flush_to_disk(&mut database, cfg)?;
             }
 
-            'q' | 'e' => break,
-            's' => flush_to_disk(&mut database, cfg)?,
+            // delete
+            'd' => {
+                if let Err(e) = delete_password(&mut database) {
+                    eprintln!("Failed to delete passwords! {e:?}");
+                    continue;
+                }
+            }
+            // get
+            'g' => retrieve_password(&database),
+
+            // help
             'h' => println!("{USAGE}"),
+            // list
+            'l' => list_passwords(&database),
+            // quit | exit
+            'q' | 'e' => break,
+            // save
+            's' => flush_to_disk(&mut database, cfg)?,
+            // update
+            'u' => {
+                if let Err(e) = update_password(&mut database) {
+                    eprintln!("Failed to update password! {e:?}");
+                    continue;
+                }
+            }
 
             _ => eprintln!("Invalid SubCommand!"),
         }
